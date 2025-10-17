@@ -1,0 +1,212 @@
+# Image Generation API - CURL Test Commands
+# Make sure your server is running on http://localhost:5000
+# Ensure MongoDB is connected and API keys are set in .env
+
+# ========================================
+# 1. GENERATE IMAGE (Main API)
+# ========================================
+
+# Basic realistic image
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "beautiful sunset over mountains with reflection in lake",
+    "style": "realistic"
+  }'
+
+# ========================================
+# 2. GENERATE WITH DIFFERENT STYLES
+# ========================================
+
+# Cartoon style
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "cute cat sitting on a chair",
+    "style": "cartoon"
+  }'
+
+# Abstract style
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "flowing water and light",
+    "style": "abstract"
+  }'
+
+# Anime style
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "warrior with sword in forest",
+    "style": "anime"
+  }'
+
+# Photographic style
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "modern city skyline at night",
+    "style": "photographic"
+  }'
+
+# Oil painting style
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "old man reading book by fireplace",
+    "style": "oil painting"
+  }'
+
+# ========================================
+# 3. GET SPECIFIC IMAGE BY ID
+# ========================================
+
+# Replace IMAGE_ID with actual ID from generation response
+curl -X GET http://localhost:5000/api/v1/images/IMAGE_ID
+
+# Example with sample ID (replace with real ID)
+# curl -X GET http://localhost:5000/api/v1/images/671234567890abcdef123456
+
+# ========================================
+# 4. GET ALL IMAGES (Public)
+# ========================================
+
+# Get all images (first 10)
+curl -X GET http://localhost:5000/api/v1/images/
+
+# Get with pagination
+curl -X GET "http://localhost:5000/api/v1/images/?page=1&limit=5"
+
+# Get second page
+curl -X GET "http://localhost:5000/api/v1/images/?page=2&limit=5"
+
+# ========================================
+# 5. GET USER IMAGES (Protected - Requires Auth)
+# ========================================
+
+# With auth token (replace YOUR_JWT_TOKEN with actual token)
+curl -X GET http://localhost:5000/api/v1/images/ \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# ========================================
+# 6. ERROR TESTING
+# ========================================
+
+# Missing prompt
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "style": "realistic"
+  }'
+
+# Missing style
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "beautiful sunset"
+  }'
+
+# Empty prompt
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "",
+    "style": "realistic"
+  }'
+
+# Empty style
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "beautiful sunset",
+    "style": ""
+  }'
+
+# Very long prompt (should fail - >1000 chars)
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. This text is intentionally very long to test the 1000 character limit validation in the API endpoint.",
+    "style": "realistic"
+  }'
+
+# Invalid image ID
+curl -X GET http://localhost:5000/api/v1/images/invalid_id_123
+
+# ========================================
+# 7. SERVER HEALTH CHECK
+# ========================================
+
+# Check if server is running
+curl -X GET http://localhost:5000/
+
+# ========================================
+# 8. SAMPLE CREATIVE PROMPTS
+# ========================================
+
+# Fantasy scene
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "magical forest with glowing mushrooms and fairy lights",
+    "style": "fantasy"
+  }'
+
+# Sci-fi scene
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "futuristic city with flying cars and neon lights",
+    "style": "cyberpunk"
+  }'
+
+# Nature scene
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "peaceful waterfall in tropical rainforest",
+    "style": "realistic"
+  }'
+
+# Portrait
+curl -X POST http://localhost:5000/api/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "professional headshot of business woman smiling",
+    "style": "portrait"
+  }'
+
+# ========================================
+# EXPECTED RESPONSES
+# ========================================
+
+# Successful Generation Response:
+# {
+#   "success": true,
+#   "message": "Image generated successfully",
+#   "data": {
+#     "id": "671234567890abcdef123456",
+#     "prompt": "beautiful sunset over mountains",
+#     "style": "realistic",
+#     "imageUrl": "http://localhost:5000/images/generated/img_1729087234567_123456789.png",
+#     "aiProvider": "openai",
+#     "createdAt": "2025-10-16T13:53:54.567Z"
+#   }
+# }
+
+# Error Response:
+# {
+#   "success": false,
+#   "message": "Please provide both prompt and style"
+# }
+
+# ========================================
+# TESTING CHECKLIST
+# ========================================
+# 1. Start server: npm run dev
+# 2. Ensure MongoDB is running
+# 3. Add GEMINI_API_KEY and OPENAI_API_KEY to .env
+# 4. Run curl commands above
+# 5. Check generated images in: public/images/generated/
+# 6. Verify database records in MongoDB
