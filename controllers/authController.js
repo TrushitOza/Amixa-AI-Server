@@ -11,6 +11,24 @@ const {
   checkOtpRateLimit
 } = require('../services/otpService');
 
+// Temporary storage for pending registrations
+const pendingRegistrations = new Map();
+
+
+// Cleanup expired pending registrations
+const cleanupExpiredRegistrations = () => {
+  const now = new Date();
+  for (const [email, data] of pendingRegistrations.entries()) {
+    if (data.otpExpires < now) {
+      pendingRegistrations.delete(email);
+    }
+  }
+};
+
+
+// Run cleanup every 10 minutes
+setInterval(cleanupExpiredRegistrations, 10 * 60 * 1000);
+
 const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '30d'
@@ -61,12 +79,26 @@ const register = async (req, res) => {
       });
     }
 
+    // Check if user already exists in database
     const existingUser = await User.findOne({ email });
-    if (existingUser && existingUser.isEmailVerified) {
+    if (existingUser) {
       return res.status(400).json({
         success: false,
         message: 'User already exists with this email'
       });
+    }
+
+    // Check if there's already a pending registration for this email
+    const existingPending = pendingRegistrations.get(email);
+    if (existingPending) {
+      // Check rate limiting for resending OTP
+      const rateLimitCheck = checkOtpRateLimit(existingPending.lastOtpSent);
+      if (!rateLimitCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: rateLimitCheck.message
+        });
+      }
     }
 
     // Generate OTP
@@ -82,36 +114,21 @@ const register = async (req, res) => {
       });
     }
 
-    // Create or update user with OTP
-    let user;
-    if (existingUser) {
-      // Update existing unverified user
-      user = await User.findByIdAndUpdate(existingUser._id, {
-        firstname,
-        lastname,
-        password,
-        emailOtp: otp,
-        emailOtpExpires: otpExpiration,
-        lastOtpSent: new Date()
-      }, { new: true });
-    } else {
-      // Create new user
-      user = await User.create({
-        firstname,
-        lastname,
-        email,
-        password,
-        emailOtp: otp,
-        emailOtpExpires: otpExpiration,
-        lastOtpSent: new Date(),
-        isEmailVerified: false
-      });
-    }
+    // Store registration data temporarily (not in database)
+    pendingRegistrations.set(email, {
+      firstname,
+      lastname,
+      email,
+      password,
+      otp,
+      otpExpires: otpExpiration,
+      lastOtpSent: new Date()
+    });
 
     res.status(201).json({
       success: true,
       message: 'Registration initiated. Please check your email for verification code.',
-      userId: user._id
+      email: email
     });
   } catch (error) {
     res.status(500).json({
@@ -178,22 +195,26 @@ const verifyEmailOtp = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    if (user.isEmailVerified) {
+    // Check if user already exists in database
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'Email is already verified'
+        message: 'User already exists with this email'
       });
     }
 
-    const otpVerification = verifyOtp(otp, user.emailOtp, user.emailOtpExpires);
+    // Get pending registration data
+    const pendingData = pendingRegistrations.get(email);
+    if (!pendingData) {
+      return res.status(404).json({
+        success: false,
+        message: 'No pending registration found for this email'
+      });
+    }
+
+    // Verify OTP
+    const otpVerification = verifyOtp(otp, pendingData.otp, pendingData.otpExpires);
     if (!otpVerification.valid) {
       return res.status(400).json({
         success: false,
@@ -201,10 +222,17 @@ const verifyEmailOtp = async (req, res) => {
       });
     }
 
-    // Mark email as verified and cleanup OTP
-    user.isEmailVerified = true;
-    cleanupUserOtps(user, 'email');
-    await user.save();
+    // Create user in database after successful OTP verification
+    const user = await User.create({
+      firstname: pendingData.firstname,
+      lastname: pendingData.lastname,
+      email: pendingData.email,
+      password: pendingData.password,
+      isEmailVerified: true // User is verified since OTP was successful
+    });
+
+    // Remove from pending registrations
+    pendingRegistrations.delete(email);
 
     sendTokenResponse(user, 200, res);
   } catch (error) {
@@ -227,23 +255,26 @@ const resendEmailOtp = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({
+    // Check if user already exists in database
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
         success: false,
-        message: 'User not found'
+        message: 'User already exists with this email'
       });
     }
 
-    if (user.isEmailVerified) {
-      return res.status(400).json({
+    // Get pending registration data
+    const pendingData = pendingRegistrations.get(email);
+    if (!pendingData) {
+      return res.status(404).json({
         success: false,
-        message: 'Email is already verified'
+        message: 'No pending registration found for this email'
       });
     }
 
     // Check rate limiting
-    const rateLimitCheck = checkOtpRateLimit(user.lastOtpSent);
+    const rateLimitCheck = checkOtpRateLimit(pendingData.lastOtpSent);
     if (!rateLimitCheck.allowed) {
       return res.status(429).json({
         success: false,
@@ -256,7 +287,7 @@ const resendEmailOtp = async (req, res) => {
     const otpExpiration = generateOtpExpiration();
 
     // Send OTP email
-    const emailResult = await sendRegistrationOtp(user.email, otp, user.firstname);
+    const emailResult = await sendRegistrationOtp(email, otp, pendingData.firstname);
     if (!emailResult.success) {
       return res.status(500).json({
         success: false,
@@ -264,11 +295,11 @@ const resendEmailOtp = async (req, res) => {
       });
     }
 
-    // Update user with new OTP
-    user.emailOtp = otp;
-    user.emailOtpExpires = otpExpiration;
-    user.lastOtpSent = new Date();
-    await user.save();
+    // Update pending registration with new OTP
+    pendingData.otp = otp;
+    pendingData.otpExpires = otpExpiration;
+    pendingData.lastOtpSent = new Date();
+    pendingRegistrations.set(email, pendingData);
 
     res.status(200).json({
       success: true,
@@ -339,7 +370,6 @@ const forgotPassword = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Password reset code sent to your email',
-      userId: user._id
     });
   } catch (error) {
     res.status(500).json({
@@ -352,16 +382,16 @@ const forgotPassword = async (req, res) => {
 // Verify password reset OTP
 const verifyPasswordResetOtp = async (req, res) => {
   try {
-    const { userId, otp } = req.body;
+    const { email, otp } = req.body;
 
-    if (!userId || !otp) {
+    if (!email || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide user ID and OTP'
+        message: 'Please provide email and OTP'
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -393,12 +423,12 @@ const verifyPasswordResetOtp = async (req, res) => {
 // Reset password after OTP verification
 const resetPasswordWithOtp = async (req, res) => {
   try {
-    const { userId, otp, password, confirmPassword } = req.body;
+    const { email, password, confirmPassword } = req.body;
 
-    if (!userId || !otp || !password || !confirmPassword) {
+    if (!email || !password || !confirmPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: 'Please provide email, password and confirm password'
       });
     }
 
@@ -409,19 +439,11 @@ const resetPasswordWithOtp = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
-      });
-    }
-
-    const otpVerification = verifyOtp(otp, user.passwordResetOtp, user.passwordResetOtpExpires);
-    if (!otpVerification.valid) {
-      return res.status(400).json({
-        success: false,
-        message: otpVerification.message
       });
     }
 

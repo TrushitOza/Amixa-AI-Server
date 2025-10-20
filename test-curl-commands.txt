@@ -82,6 +82,13 @@ curl -X GET "http://localhost:5000/api/v1/images/?page=1&limit=5"
 curl -X GET "http://localhost:5000/api/v1/images/?page=2&limit=5"
 
 # ========================================
+# 4.1. GET RECENT LOGOS (Public)
+# ========================================
+
+# Get 5 most recent logos
+curl -X GET http://localhost:5000/api/v1/images/recent/logos
+
+# ========================================
 # 5. GET USER IMAGES (Protected - Requires Auth)
 # ========================================
 
@@ -142,7 +149,38 @@ curl -X GET http://localhost:5000/api/v1/images/invalid_id_123
 curl -X GET http://localhost:5000/
 
 # ========================================
-# 8. SAMPLE CREATIVE PROMPTS
+# 8. LOGO GENERATION (Protected - Requires Auth)
+# ========================================
+
+# Generate modern tech logo
+curl -X POST http://localhost:5000/api/v1/images/logo \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "prompt": "tech startup logo with circuit patterns",
+    "style": "modern"
+  }'
+
+# Generate minimalist logo
+curl -X POST http://localhost:5000/api/v1/images/logo \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "prompt": "coffee shop logo with simple cup design",
+    "style": "minimalist"
+  }'
+
+# Generate corporate logo
+curl -X POST http://localhost:5000/api/v1/images/logo \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "prompt": "financial services company logo",
+    "style": "corporate"
+  }'
+
+# ========================================
+# 9. SAMPLE CREATIVE PROMPTS
 # ========================================
 
 # Fantasy scene

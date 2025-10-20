@@ -1,8 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const logger = require('./middleware/logger.js');
@@ -20,8 +18,7 @@ connectDB();
 const app = express();
 
 
-// Security middleware
-app.use(helmet());
+  
 
 
 // CORS configuration

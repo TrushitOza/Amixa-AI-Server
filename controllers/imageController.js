@@ -281,6 +281,43 @@ const blendImagesFromUpload = async (req, res) => {
   }
 };
 
+// Get recent logos (latest 5)
+const getRecentLogos = async (req, res) => {
+  try {
+    // Query for the 5 most recent logos
+    const recentLogos = await Image.find({ 
+      imageType: 'logo',
+      status: 'completed'
+    })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .select('prompt style imageUrl aiProvider createdAt metadata.logoStyle');
+
+    res.status(200).json({
+      success: true,
+      message: 'Recent logos fetched successfully',
+      data: recentLogos.map(logo => ({
+        id: logo._id,
+        prompt: logo.prompt,
+        style: logo.style,
+        imageUrl: logo.imageUrl,
+        aiProvider: logo.aiProvider,
+        logoStyle: logo.metadata?.logoStyle || logo.style,
+        createdAt: logo.createdAt
+      })),
+      count: recentLogos.length
+    });
+
+  } catch (error) {
+    console.error('Get recent logos error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
 // Generate logo/icon from prompt and style
 const generateLogoFromPrompt = async (req, res) => {
   try {
@@ -398,5 +435,6 @@ module.exports = {
   blendImagesFromUpload,
   generateLogoFromPrompt,
   getImageById,
-  getUserImages
+  getUserImages,
+  getRecentLogos
 };
