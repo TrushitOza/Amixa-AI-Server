@@ -518,19 +518,17 @@ const editUser = async (req, res) => {
     const { firstname, lastname, email } = req.body;
     const userId = req.user.id;
 
+          // Only allow firstname and lastname updates, not email
     const fieldsToUpdate = {};
     if (firstname) fieldsToUpdate.firstname = firstname;
     if (lastname) fieldsToUpdate.lastname = lastname;
-    if (email) fieldsToUpdate.email = email;
 
+    // Reject email update attempts
     if (email) {
-      const existingUser = await User.findOne({ email, _id: { $ne: userId } });
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email already exists'
-        });
-      }
+      return res.status(400).json({
+        success: false,
+        message: 'Email cannot be changed. Only first name and last name can be updated.'
+      });
     }
 
     const user = await User.findByIdAndUpdate(
@@ -553,7 +551,6 @@ const editUser = async (req, res) => {
       success: true,
       message: 'User updated successfully',
       user: {
-        id: user._id,
         firstname: user.firstname,
         lastname: user.lastname,
         email: user.email

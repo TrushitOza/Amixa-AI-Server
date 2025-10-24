@@ -240,6 +240,111 @@ curl -X POST http://localhost:5000/api/v1/images/generate \
 # }
 
 # ========================================
+# 10. DASHBOARD API (Protected - Requires Auth)
+# ========================================
+
+# Get dashboard overview (main dashboard data)
+curl -X GET http://localhost:5000/api/v1/dashboard/overview \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get dashboard statistics (default 30 days)
+curl -X GET http://localhost:5000/api/v1/dashboard/stats \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get dashboard statistics for specific period (7 days)
+curl -X GET "http://localhost:5000/api/v1/dashboard/stats?period=7" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get dashboard statistics for 90 days
+curl -X GET "http://localhost:5000/api/v1/dashboard/stats?period=90" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get recent activity (default pagination)
+curl -X GET http://localhost:5000/api/v1/dashboard/activity \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get recent activity with pagination
+curl -X GET "http://localhost:5000/api/v1/dashboard/activity?page=1&limit=10" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get popular styles (all time)
+curl -X GET http://localhost:5000/api/v1/dashboard/styles \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get popular styles for specific period (30 days)
+curl -X GET "http://localhost:5000/api/v1/dashboard/styles?period=30" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# Get popular styles for last 7 days
+curl -X GET "http://localhost:5000/api/v1/dashboard/styles?period=7" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# ========================================
+# EXPECTED DASHBOARD RESPONSES
+# ========================================
+
+# Dashboard Overview Response:
+# {
+#   "success": true,
+#   "message": "Dashboard overview retrieved successfully",
+#   "data": {
+#     "overview": {
+#       "totalImages": 25,
+#       "totalLogos": 8,
+#       "creditsUsed": 33,
+#       "currentCredits": 7,
+#       "favorites": 12
+#     },
+#     "recentActivity": [
+#       {
+#         "id": "671234567890abcdef123456",
+#         "prompt": "beautiful sunset over mountains",
+#         "imageType": "generated",
+#         "imageUrl": "http://localhost:5000/images/generated/img_123.png",
+#         "style": "realistic",
+#         "timeAgo": "2h ago",
+#         "createdAt": "2025-10-21T08:30:00.000Z"
+#       }
+#     ],
+#     "popularStyles": [
+#       {
+#         "style": "realistic",
+#         "count": 15,
+#         "percentage": 60
+#       },
+#       {
+#         "style": "cartoon",
+#         "count": 6,
+#         "percentage": 24
+#       }
+#     ]
+#   }
+# }
+
+# Popular Styles Response:
+# {
+#   "success": true,
+#   "message": "Popular styles retrieved successfully",
+#   "data": {
+#     "styles": [
+#       {
+#         "style": "realistic",
+#         "count": 15,
+#         "percentage": 45,
+#         "imageTypes": [
+#           {"type": "generated", "count": 10},
+#           {"type": "logo", "count": 5}
+#         ],
+#         "lastUsed": "2025-10-21T10:30:00.000Z",
+#         "lastUsedAgo": "30m ago"
+#       }
+#     ],
+#     "totalUsage": 33,
+#     "period": "All time"
+#   }
+# }
+
+# ========================================
 # TESTING CHECKLIST
 # ========================================
 # 1. Start server: npm run dev
@@ -248,3 +353,4 @@ curl -X POST http://localhost:5000/api/v1/images/generate \
 # 4. Run curl commands above
 # 5. Check generated images in: public/images/generated/
 # 6. Verify database records in MongoDB
+# 7. Test dashboard endpoints with valid JWT token
