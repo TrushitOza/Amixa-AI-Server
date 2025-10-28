@@ -40,7 +40,11 @@ const creditTransactionSchema = new mongoose.Schema({
       'admin_add',
       'refund_failed_generation',
       'bonus_credits',
-      'promotional_credits'
+      'promotional_credits',
+      'plan_purchase',
+      'subscription_renewal',
+      'plan_expiry_deduction',
+      'subscription_cancelled'
     ]
   },
   description: {
@@ -62,7 +66,11 @@ const creditTransactionSchema = new mongoose.Schema({
     orderId: String,
     promotionCode: String,
     ipAddress: String,
-    userAgent: String
+    userAgent: String,
+    planId: String,
+    planName: String,
+    planType: String,
+    subscriptionId: String
   },
   status: {
     type: String,

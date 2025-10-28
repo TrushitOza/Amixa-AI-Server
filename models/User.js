@@ -63,6 +63,66 @@ const userSchema = new mongoose.Schema({
     type: String,
     enum: ['user', 'admin'],
     default: 'user'
+  },
+  // Payment and Subscription Fields
+  planCredits: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  maxCredits: {
+    type: Number,
+    default: 3, // Start with initial 3 daily credits
+    min: 0
+  },
+  currentPlan: {
+    type: String,
+    enum: [
+      'free', 
+      'starter_pack', 
+      'popular_pack', 
+      'power_pack', 
+      'mega_pack',
+      'basic_monthly',
+      'pro_monthly', 
+      'business_monthly',
+      'pro_yearly',
+      'business_yearly'
+    ],
+    default: 'free'
+  },
+  planType: {
+    type: String,
+    enum: ['monthly', 'yearly', null],
+    default: null
+  },
+  planStartDate: {
+    type: Date,
+    default: null
+  },
+  planEndDate: {
+    type: Date,
+    default: null
+  },
+  nextBillingDate: {
+    type: Date,
+    default: null
+  },
+  isSubscriptionActive: {
+    type: Boolean,
+    default: false
+  },
+  subscriptionId: {
+    type: String,
+    default: null
+  },
+  razorpayCustomerId: {
+    type: String,
+    default: null
+  },
+  autoRenewal: {
+    type: Boolean,
+    default: true
   }
 }, {
   timestamps: true

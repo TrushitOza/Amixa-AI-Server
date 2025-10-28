@@ -1,8 +1,6 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const logger = require('./middleware/logger.js');
@@ -20,13 +18,12 @@ connectDB();
 const app = express();
 
 
-// Security middleware
-app.use(helmet());
+  
 
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8080'],
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -78,7 +75,9 @@ app.use(`${apiBase}/liked`, require('./routes/likedRoutes'));
 app.use(`${apiBase}/download`, require('./routes/downloadRoutes'));
 app.use(`${apiBase}/credits`, require('./routes/creditRoutes'));
 app.use(`${apiBase}/transactions`, require('./routes/transactionRoutes'));
+app.use(`${apiBase}/dashboard`, require('./routes/dashboardRoutes'));
 app.use(`${apiBase}/admin`, require('./routes/adminRoutes'));
+app.use(`${apiBase}/payments`, require('./routes/paymentRoutes'));
 
 // 404 handler
 app.use('*', (req, res) => {

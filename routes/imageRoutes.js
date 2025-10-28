@@ -4,7 +4,8 @@ const {
   blendImagesFromUpload,
   generateLogoFromPrompt,
   getImageById,
-  getUserImages
+  getUserImages,
+  getRecentLogos
 } = require('../controllers/imageController');
 const { protect } = require('../middleware/auth');
 const { handleImageUpload } = require('../middleware/upload');
@@ -13,6 +14,7 @@ const { requireCredits } = require('../services/creditService');
 const router = express.Router();
 
 // Public routes (no auth required)
+router.get('/recent/logos', getRecentLogos);
 router.get('/:id', getImageById);
 
 // Protected routes (auth required)
