@@ -27,7 +27,9 @@ const app = express();
 //   credentials: true,
 //   optionsSuccessStatus: 200
 // };
-app.use(cors());
+app.use(cors({
+  origin: "*"
+}));
 
 // Rate limiting
 const limiter = rateLimit({
