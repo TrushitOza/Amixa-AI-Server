@@ -22,12 +22,12 @@ const app = express();
 
 
 // CORS configuration
-const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8080'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
+// const corsOptions = {
+//   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:8080'],
+//   credentials: true,
+//   optionsSuccessStatus: 200
+// };
+app.use(cors());
 
 // Rate limiting
 const limiter = rateLimit({
