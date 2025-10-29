@@ -1,5 +1,6 @@
 const Image = require('../models/Image');
-const { generateImage, blendImages, generateLogo, saveImageToPublic, generateFilename } = require('../services/aiService');
+const { generateImage, blendImages, generateLogo } = require('../services/aiService');
+const cloudinary = require('../config/cloudinary');
 const { consumeCredits } = require('../services/creditService');
 
 // Generate image from prompt and style
@@ -33,34 +34,31 @@ const generateImageFromPrompt = async (req, res) => {
       });
     }
 
-    // Save image to public folder
-    const filename = generateFilename('png');
-    const saveResult = saveImageToPublic(aiResult.imageData, filename);
+    // Upload to Cloudinary
+    const uploadResult = await cloudinary.uploader.upload(
+      `data:image/png;base64,${aiResult.imageData}`,
+      {
+        folder: 'ai-generated-images',
+        resource_type: 'image',
+        public_id: `img_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
+      }
+    );
 
-    if (!saveResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to save image',
-        error: saveResult.error
-      });
-    }
-
-    // Create database record after successful generation and saving
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}${saveResult.imagePath}`;
-
+    // Create database record with Cloudinary URL
     const imageRecord = await Image.create({
       prompt: prompt.trim(),
       style: style.toLowerCase().trim(),
-      imagePath: saveResult.imagePath,
-      imageUrl: imageUrl,
+      imagePath: null, // No local file path
+      imageUrl: uploadResult.secure_url, // Cloudinary URL
       aiProvider: aiResult.provider,
       status: 'completed',
       userId: req.user?.id,
       metadata: {
         format: 'png',
         width: 1024,
-        height: 1024
+        height: 1024,
+        storageType: 'cloudinary',
+        cloudinaryId: uploadResult.public_id
       }
     });
 
@@ -215,27 +213,22 @@ const blendImagesFromUpload = async (req, res) => {
       });
     }
 
-    // Save blended image to public folder
-    const filename = generateFilename('png');
-    const saveResult = saveImageToPublic(aiResult.imageData, filename);
-
-    if (!saveResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to save blended image',
-        error: saveResult.error
-      });
-    }
+    // Upload blended image to Cloudinary
+    const uploadResult = await cloudinary.uploader.upload(
+      `data:image/png;base64,${aiResult.imageData}`,
+      {
+        folder: 'ai-blended-images',
+        resource_type: 'image',
+        public_id: `blend_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
+      }
+    );
 
     // Create database record for blended image
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}${saveResult.imagePath}`;
-
     const imageRecord = await Image.create({
       prompt: prompt.trim(),
       style: style.toLowerCase().trim(),
-      imagePath: saveResult.imagePath,
-      imageUrl: imageUrl,
+      imagePath: null, // No local file path
+      imageUrl: uploadResult.secure_url, // Cloudinary URL
       aiProvider: aiResult.provider,
       status: 'completed',
       imageType: 'blended', // Mark as blended image
@@ -244,6 +237,8 @@ const blendImagesFromUpload = async (req, res) => {
         format: 'png',
         width: 1024,
         height: 1024,
+        storageType: 'cloudinary',
+        cloudinaryId: uploadResult.public_id,
         sourceImages: images.length,
         blendedImages: aiResult.blendedImages || images.length
       }
@@ -364,27 +359,22 @@ const generateLogoFromPrompt = async (req, res) => {
       });
     }
 
-    // Save logo to public folder
-    const filename = generateFilename('png');
-    const saveResult = saveImageToPublic(aiResult.imageData, filename);
-
-    if (!saveResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to save logo',
-        error: saveResult.error
-      });
-    }
+    // Upload logo to Cloudinary
+    const uploadResult = await cloudinary.uploader.upload(
+      `data:image/png;base64,${aiResult.imageData}`,
+      {
+        folder: 'ai-logos',
+        resource_type: 'image',
+        public_id: `logo_${Date.now()}_${Math.floor(Math.random() * 1000000)}`
+      }
+    );
 
     // Create database record for logo
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    const imageUrl = `${baseUrl}${saveResult.imagePath}`;
-
     const logoRecord = await Image.create({
       prompt: prompt.trim(),
       style: style.toLowerCase().trim(),
-      imagePath: saveResult.imagePath,
-      imageUrl: imageUrl,
+      imagePath: null, // No local file path
+      imageUrl: uploadResult.secure_url, // Cloudinary URL
       aiProvider: aiResult.provider,
       status: 'completed',
       imageType: 'logo', // Mark as logo
@@ -393,6 +383,8 @@ const generateLogoFromPrompt = async (req, res) => {
         format: 'png',
         width: 1024,
         height: 1024,
+        storageType: 'cloudinary',
+        cloudinaryId: uploadResult.public_id,
         logoStyle: style.toLowerCase(),
         model: aiResult.model || 'default'
       }

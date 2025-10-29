@@ -44,7 +44,13 @@ const imageSchema = new mongoose.Schema({
     width: Number,
     height: Number,
     format: String,
-    fileSize: Number
+    fileSize: Number,
+    storageType: {
+      type: String,
+      enum: ['file', 'cloudinary'],
+      default: 'file'
+    },
+    cloudinaryId: String // Store Cloudinary public_id for deletion
   },
   status: {
     type: String,
