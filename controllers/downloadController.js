@@ -3,6 +3,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs');
 const mongoose = require('mongoose');
+const axios = require('axios');
 
 // Download image in specified format
 const downloadImage = async (req, res) => {
@@ -41,19 +42,45 @@ const downloadImage = async (req, res) => {
       });
     }
 
-    // Get the original image file path
-    const originalImagePath = path.join(__dirname, '..', 'public', image.imagePath);
-
-    // Check if original file exists
-    if (!fs.existsSync(originalImagePath)) {
+    // Handle different storage types
+    let imageBuffer;
+    
+    if (image.metadata?.storageType === 'cloudinary' && image.imageUrl) {
+      // Download image from Cloudinary URL
+      try {
+        const response = await axios.get(image.imageUrl, { 
+          responseType: 'arraybuffer',
+          timeout: 30000 // 30 second timeout
+        });
+        imageBuffer = Buffer.from(response.data);
+      } catch (downloadError) {
+        console.error('Failed to download image from Cloudinary:', downloadError);
+        return res.status(404).json({
+          success: false,
+          message: 'Failed to download image from cloud storage'
+        });
+      }
+    } else if (image.imagePath) {
+      // Handle legacy file-based storage
+      const originalImagePath = path.join(__dirname, '..', 'public', image.imagePath);
+      
+      if (!fs.existsSync(originalImagePath)) {
+        return res.status(404).json({
+          success: false,
+          message: 'Original image file not found'
+        });
+      }
+      
+      imageBuffer = fs.readFileSync(originalImagePath);
+    } else {
       return res.status(404).json({
         success: false,
-        message: 'Original image file not found'
+        message: 'Image source not available'
       });
     }
 
     // Process image with Sharp
-    let sharpInstance = sharp(originalImagePath);
+    let sharpInstance = sharp(imageBuffer);
 
     // Apply size transformation if requested
     if (size) {
@@ -190,12 +217,30 @@ const getDownloadInfo = async (req, res) => {
       });
     }
 
-    // Get original file info
-    const originalImagePath = path.join(__dirname, '..', 'public', image.imagePath);
-    let fileStats = null;
+    // Get original file info based on storage type
+    let fileInfo = {
+      exists: false,
+      size: null,
+      sizeFormatted: null,
+      storageType: image.metadata?.storageType || 'file'
+    };
     
-    if (fs.existsSync(originalImagePath)) {
-      fileStats = fs.statSync(originalImagePath);
+    if (image.metadata?.storageType === 'cloudinary' && image.imageUrl) {
+      // For Cloudinary images, we can't get exact file size without downloading
+      // But we know the image exists if we have a URL
+      fileInfo.exists = true;
+      fileInfo.size = 'Available from cloud storage';
+      fileInfo.sizeFormatted = 'Cloud hosted';
+    } else if (image.imagePath) {
+      // Handle legacy file-based storage
+      const originalImagePath = path.join(__dirname, '..', 'public', image.imagePath);
+      
+      if (fs.existsSync(originalImagePath)) {
+        const fileStats = fs.statSync(originalImagePath);
+        fileInfo.exists = true;
+        fileInfo.size = fileStats.size;
+        fileInfo.sizeFormatted = `${(fileStats.size / 1024 / 1024).toFixed(2)} MB`;
+      }
     }
 
     res.status(200).json({
@@ -210,11 +255,7 @@ const getDownloadInfo = async (req, res) => {
           aiProvider: image.aiProvider,
           createdAt: image.createdAt
         },
-        originalFile: {
-          exists: !!fileStats,
-          size: fileStats ? fileStats.size : null,
-          sizeFormatted: fileStats ? `${(fileStats.size / 1024 / 1024).toFixed(2)} MB` : null
-        },
+        originalFile: fileInfo,
         supportedFormats: ['png', 'jpg', 'jpeg', 'webp', 'ico', 'bmp', 'tiff'],
         supportedSizes: ['256x256', '512x512', '1024x1024', '2048x2048'],
         downloadUrl: `/api/v1/download/${imageId}`
