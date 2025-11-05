@@ -125,7 +125,7 @@ const generateImageWithHuggingFace = async (prompt, style) => {
     for (const model of models) {
       try {
         console.log(`Trying Hugging Face model: ${model}`);
-        response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+        response = await fetch(`https://router.huggingface.co/hf-inference/models/${model}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
@@ -380,7 +380,7 @@ const blendImagesWithHuggingFace = async (imageBase64Array, prompt, style) => {
           }
         };
 
-        response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+        response = await fetch(`https://router.huggingface.co/hf-inference/models/${model}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
@@ -606,7 +606,7 @@ const generateLogoWithHuggingFace = async (prompt, style) => {
     for (const model of models) {
       try {
         console.log(`Trying Hugging Face logo model: ${model}`);
-        response = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+        response = await fetch(`https://router.huggingface.co/hf-inference/models/${model}`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
