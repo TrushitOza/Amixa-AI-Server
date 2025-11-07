@@ -1,7 +1,9 @@
 const express = require('express');
 const {
   getUserHistory,
-  getHistoryStats
+  getHistoryStats,
+  deleteHistoryItem,
+  deleteAllHistory
 } = require('../controllers/historyController');
 const { protect } = require('../middleware/auth');
 
@@ -15,5 +17,11 @@ router.get('/', getUserHistory);
 
 // Get history statistics
 router.get('/stats', getHistoryStats);
+
+// Delete all user history (must come before /:imageId to avoid conflict)
+router.delete('/all', deleteAllHistory);
+
+// Delete single history item
+router.delete('/:imageId', deleteHistoryItem);
 
 module.exports = router;
