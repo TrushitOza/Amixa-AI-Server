@@ -3,93 +3,702 @@ const path = require("path");
 const fetch = require("node-fetch");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const OpenAI = require("openai");
+const { InferenceClient } = require("@huggingface/inference");
 
 // Initialize AI clients
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+const hfClient = new InferenceClient(process.env.HUGGINGFACE_API_KEY);
 
-// Prompt Engineering Function
-const enhancePrompt = (userPrompt, style) => {
-  // Base quality enhancers
-  const qualityTerms =
-    "high quality, detailed, professional, sharp focus, well-lit";
+// ═══════════════════════════════════════════════════════════════════════════
+// ║         AI IMAGE PROMPT ENGINEER — Production Grade v2.0              ║
+// ║    Optimized for: FLUX · SDXL · Midjourney · DALL·E · Ideogram       ║
+// ═══════════════════════════════════════════════════════════════════════════
 
-  // Style-specific enhancements
-  const styleEnhancements = {
-    realistic:
-      "photorealistic, ultra-realistic, 8k resolution, professional photography",
-    cartoon: "cartoon style, animated, colorful, clean lines, digital art",
-    anime: "anime style, manga, japanese animation, vibrant colors, detailed",
-    "oil painting":
-      "oil painting, classical art, brush strokes, artistic, painted texture",
-    watercolor: "watercolor painting, soft colors, flowing, artistic, painted",
-    sketch: "pencil sketch, hand-drawn, artistic lines, black and white",
-    "digital art": "digital art, concept art, detailed, modern, clean",
-    fantasy: "fantasy art, magical, mystical, detailed, epic, cinematic",
-    cyberpunk: "cyberpunk style, neon lights, futuristic, dark, atmospheric",
-    vintage: "vintage style, retro, classic, aged, nostalgic",
-    minimalist: "minimalist, clean, simple, modern, elegant",
-    abstract: "abstract art, artistic, creative, unique composition",
-  };
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 1: STYLE PROFILES
+// ─────────────────────────────────────────────────────────────────────────
+const STYLE_PROFILES = {
+  realistic: {
+    core: "photorealistic, ultra-realistic, hyperrealistic, true-to-life",
+    rendering:
+      "shot on Sony A7R IV, 85mm f/1.4 lens, RAW format, natural depth of field",
+    lighting:
+      "natural golden hour lighting, soft volumetric light, realistic shadows and highlights",
+    camera:
+      "cinematic composition, rule of thirds, sharp foreground, bokeh background",
+    quality:
+      "8K UHD, ultra-sharp, HDR, physically-based rendering, photographic fidelity, studio grade",
+    negative:
+      "cartoon, illustration, painting, anime, CGI, artificial, plastic, overexposed, underexposed, grain, noise, JPEG artifacts, chromatic aberration, lens flare (unwanted), blurry, soft focus, low resolution, watermark, text, signature, extra limbs, bad anatomy, deformed, mutilated, disfigured, cloned face, asymmetrical eyes, bad proportions, extra fingers, missing fingers, fused fingers, floating limbs, disconnected limbs",
+  },
 
-  // Negative prompts to avoid common issues
-  const negativePrompts =
-    "blurry, low quality, distorted, ugly, bad anatomy, extra limbs, text, watermark";
+  cinematic: {
+    core: "cinematic film still, movie quality, epic visual storytelling, anamorphic lens",
+    rendering:
+      "35mm film stock, ARRI Alexa cinematography, anamorphic widescreen, 2.39:1 aspect ratio",
+    lighting:
+      "dramatic three-point lighting, practical lights, motivated shadows, cinematic color grading",
+    camera:
+      "low-angle hero shot, dynamic framing, shallow depth of field, focus pull, cinematic bokeh",
+    quality:
+      "award-winning cinematography, Hollywood production quality, ultra-detailed, 8K cinema, IMAX grade",
+    negative:
+      "amateur photography, snapshot, poorly lit, overexposed, flat lighting, no depth, bad composition, watermark, text, blurry, motion blur (unwanted), distorted, bad anatomy, extra limbs, ugly, deformed",
+  },
 
-  // Get style enhancement or default
-  const styleEnhancement =
-    styleEnhancements[style.toLowerCase()] || styleEnhancements["realistic"];
+  anime: {
+    core: "anime style, high-quality manga illustration, Japanese animation studio quality",
+    rendering:
+      "Studio Ghibli-level detail, Makoto Shinkai sky quality, cel-shaded, clean linework",
+    lighting:
+      "anime-style rim lighting, soft gradient shadows, dramatic specular highlights, ambient occlusion",
+    camera:
+      "dynamic anime perspective, expressive composition, wide emotional framing",
+    quality:
+      "ultra-detailed, 4K anime, crisp lines, vibrant saturated colors, professional key visual, promotional art quality",
+    negative:
+      "western cartoon, 3D render, photorealistic, ugly face, off-model, bad proportions, poorly drawn hands, extra fingers, missing eyes, asymmetrical face, bad anatomy, deformed, low detail, rough sketch, NSFW, watermark, signature, blurry, low quality",
+  },
 
-  // Construct enhanced prompt
-  const enhancedPrompt = `${userPrompt}, ${styleEnhancement}, ${qualityTerms}. Negative prompt: ${negativePrompts}`;
+  cartoon: {
+    core: "professional cartoon illustration, stylized character art, clean vector-like aesthetic",
+    rendering:
+      "bold outlines, flat colors with subtle shading, cel-shaded, expressive character design",
+    lighting:
+      "simplified cartoon lighting, bright fill light, soft drop shadows",
+    camera: "playful framing, exaggerated perspective, dynamic pose",
+    quality:
+      "high-resolution cartoon art, clean digital illustration, professional animation studio quality, crisp edges",
+    negative:
+      "realistic, photographic, anime, overly detailed textures, gritty, dark, horror, bad proportions, extra limbs, deformed, ugly, low quality, blurry, sketch lines, rough",
+  },
 
-  return enhancedPrompt;
+  fantasy: {
+    core: "epic fantasy art, high fantasy illustration, magical world-building, legendary atmosphere",
+    rendering:
+      "detailed concept art, matte painting quality, painterly textures, fantasy realism",
+    lighting:
+      "dramatic magical lighting, god rays, glowing arcane energy, mystical atmosphere, bioluminescence",
+    camera:
+      "epic wide establishing shot, heroic framing, sweeping landscape or dramatic close-up",
+    quality:
+      "award-winning fantasy illustration, 8K, ultra-detailed, professional concept art, gallery-quality digital painting",
+    negative:
+      "modern setting, sci-fi elements, photorealistic (unless intended), poor anatomy, bad proportions, extra limbs, deformed faces, blurry, low quality, watermark, text, amateur",
+  },
+
+  cyberpunk: {
+    core: "cyberpunk aesthetic, neo-noir futurism, high-tech dystopia, biopunk",
+    rendering:
+      "neon-lit city, holographic interfaces, rain-slicked streets, chrome and carbon fiber",
+    lighting:
+      "dramatic neon backlighting, rim light in cyan/magenta/amber, haze and fog, lens flare accents",
+    camera:
+      "Dutch angle for tension, wide-angle urban framing, low-angle hero shot, rain effect",
+    quality:
+      "ultra-detailed, 8K, cinematic quality, Blade Runner 2049 visual fidelity, Akira-level detail",
+    negative:
+      "natural daylight, rural setting, cheerful, pastel colors, low tech, bad anatomy, extra limbs, deformed, watermark, text, blurry, low quality",
+  },
+
+  watercolor: {
+    core: "professional watercolor painting, loose expressive brushwork, luminous washes",
+    rendering:
+      "wet-on-wet technique, bleeding edges, granulation texture, white paper showing through",
+    lighting:
+      "soft diffused light, transparent overlapping glazes, delicate highlights",
+    camera:
+      "artistic composition, balanced negative space, organic flowing arrangement",
+    quality:
+      "museum-quality watercolor, 300gsm cold-press paper texture, master artist level, high resolution scan",
+    negative:
+      "digital-looking, plastic, over-rendered, harsh edges, photorealistic, 3D render, anime, flat colors, no texture, watermark, text, blurry",
+  },
+
+  "oil painting": {
+    core: "classical oil painting, old master technique, rich impasto texture",
+    rendering:
+      "visible brushwork, layered glazes, chiaroscuro, Rembrandt-like depth and warmth",
+    lighting:
+      "dramatic Baroque lighting, warm amber tones, deep shadow contrast, dramatic highlights",
+    camera:
+      "classical portrait or landscape composition, Dutch Golden Age framing",
+    quality:
+      "museum-quality oil painting, gallery-level fine art, highly detailed, masterpiece, 16K scan resolution",
+    negative:
+      "digital art, photorealistic, anime, cartoon, flat colors, no texture, watercolor, acrylic, watermark, text, modern aesthetic",
+  },
+
+  sketch: {
+    core: "detailed pencil sketch, fine art drawing, expressive hand-drawn illustration",
+    rendering:
+      "cross-hatching, graphite shading, gesture lines, construction marks, artist's sketch",
+    lighting:
+      "dramatic hatching for shadows, light areas as white paper, tonal range through line density",
+    camera: "artist's eye composition, dynamic line weight, expressive angles",
+    quality:
+      "master draughtsman quality, fine art sketchbook, high-resolution scan, detailed linework",
+    negative:
+      "color, painted, digital-looking, cartoon, anime, photorealistic, blurry, low detail, rough, sloppy, watermark",
+  },
+
+  "digital art": {
+    core: "professional digital illustration, concept art, polished digital painting",
+    rendering:
+      "digital painting techniques, clean rendering, hard and soft brush blend, layer effects",
+    lighting:
+      "dramatic rim lighting, HDR-quality lighting, specular highlights, subsurface scattering",
+    camera: "dynamic cinematic composition, rule of thirds, strong focal point",
+    quality:
+      "ArtStation-quality, 8K, ultra-detailed, trending on ArtStation, professional concept art, portfolio-grade",
+    negative:
+      "amateurish, sketch-like, rough, unfinished, low quality, bad anatomy, extra limbs, deformed, watermark, text, blurry, noisy",
+  },
+
+  minimalist: {
+    core: "ultra-clean minimalist design, negative space mastery, refined simplicity",
+    rendering:
+      "flat design with subtle depth, limited color palette, geometric precision",
+    lighting: "soft even illumination, no harsh shadows, clean studio lighting",
+    camera:
+      "centered symmetrical composition, generous breathing room, intentional emptiness",
+    quality:
+      "Bauhaus-inspired precision, luxury brand aesthetic, pristine edges, print-quality resolution",
+    negative:
+      "cluttered, busy, detailed textures, gradient overload, drop shadows, bevel, emboss, vintage, grunge, extra elements, noise, watermark, text",
+  },
+
+  abstract: {
+    core: "expressive abstract art, non-representational, emotional visual language",
+    rendering:
+      "gestural mark-making, layered forms, texture collage, organic and geometric interplay",
+    lighting:
+      "dramatic contrast, tonal depth, luminous inner glow, translucent layers",
+    camera: "full-bleed composition, dynamic flow, intentional asymmetry",
+    quality:
+      "gallery-quality abstract art, museum-grade print, rich color saturation, high-resolution artwork",
+    negative:
+      "realistic, recognizable subjects, bad composition, muddy colors, overworked, cluttered without intent, watermark, text",
+  },
+
+  vintage: {
+    core: "authentic vintage aesthetic, period-accurate visual style, nostalgic atmosphere",
+    rendering:
+      "aged film grain, faded color palette, light leaks, dust and scratch overlay",
+    lighting:
+      "warm sepia tones, faded highlights, soft vignette, analog photography feel",
+    camera:
+      "classic portrait or reportage framing, candid feel, Kodachrome color grading",
+    quality:
+      "high-resolution vintage scan quality, authentic retro details, editorial quality",
+    negative:
+      "modern, digital, clean, HDR, oversaturated, new, futuristic, plastic, synthetic, watermark, text, blurry (unwanted)",
+  },
 };
 
-// Logo/Icon Specific Prompt Engineering
-const enhanceLogoPrompt = (userPrompt, style) => {
-  // Logo-specific quality terms
-  const logoQualityTerms =
-    "vector art, clean design, professional logo, scalable, high contrast, clear lines, brand identity";
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 2: UNIVERSAL QUALITY ANCHORS
+// ─────────────────────────────────────────────────────────────────────────
+const UNIVERSAL_QUALITY = [
+  "masterpiece",
+  "best quality",
+  "highly detailed",
+  "sharp focus",
+  "professional",
+  "aesthetically strong",
+  "visually coherent",
+];
 
-  // Logo style-specific enhancements
-  const logoStyleEnhancements = {
-    modern:
-      "modern logo design, minimalist, clean typography, contemporary, sleek",
-    vintage:
-      "vintage logo, retro design, classic typography, aged look, traditional",
-    minimalist:
-      "minimalist logo, simple design, clean lines, negative space, elegant",
-    corporate:
-      "corporate logo, professional, business identity, trustworthy, clean",
-    creative:
-      "creative logo, artistic, unique design, innovative, eye-catching",
-    tech: "tech logo, digital, futuristic, modern technology, innovation",
-    luxury: "luxury logo, premium design, elegant, sophisticated, high-end",
-    playful: "playful logo, fun design, colorful, friendly, approachable",
-    bold: "bold logo design, strong typography, impactful, confident, powerful",
-    elegant: "elegant logo, refined design, sophisticated, graceful, premium",
-    geometric:
-      "geometric logo, abstract shapes, mathematical precision, structured",
-    organic: "organic logo, natural shapes, flowing lines, nature-inspired",
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 3: UNIVERSAL NEGATIVE ANCHORS
+// ─────────────────────────────────────────────────────────────────────────
+const UNIVERSAL_NEGATIVES = [
+  "blurry",
+  "out of focus",
+  "low quality",
+  "low resolution",
+  "poorly drawn",
+  "bad anatomy",
+  "extra limbs",
+  "extra fingers",
+  "missing fingers",
+  "fused fingers",
+  "bad hands",
+  "deformed",
+  "distorted",
+  "mutilated",
+  "disfigured",
+  "ugly face",
+  "cloned face",
+  "bad proportions",
+  "malformed",
+  "floating limbs",
+  "disconnected body parts",
+  "duplicate",
+  "two heads",
+  "watermark",
+  "signature",
+  "text overlay",
+  "username",
+  "artist name",
+  "copyright",
+  "artifacts",
+  "JPEG compression",
+  "pixel noise",
+  "oversaturation",
+  "overexposed",
+  "underexposed",
+  "unnatural colors",
+  "cropped head",
+  "frame cut",
+  "out of frame",
+  "draft",
+  "unfinished",
+];
+
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 4: SUBJECT INTELLIGENCE LAYER
+// ─────────────────────────────────────────────────────────────────────────
+const SUBJECT_INTELLIGENCE = {
+  person: {
+    triggers: [
+      "person",
+      "man",
+      "woman",
+      "girl",
+      "boy",
+      "human",
+      "character",
+      "portrait",
+      "face",
+      "people",
+      "child",
+      "warrior",
+      "hero",
+      "model",
+      "soldier",
+    ],
+    boosters:
+      "anatomically correct, natural skin texture with subtle pores, realistic eye reflections with catchlights, natural hair strands, proper limb proportions, detailed hands with correct finger count, expressive facial micro-expressions, physically plausible clothing folds and drape",
+    negatives:
+      "extra fingers, missing fingers, bad hands, fused hands, extra arms, missing limbs, floating hands, asymmetrical eyes, crossed eyes, blank eyes, dead eyes, melting face, double chin (unintended), bad teeth",
+  },
+
+  landscape: {
+    triggers: [
+      "landscape",
+      "mountain",
+      "forest",
+      "city",
+      "ocean",
+      "desert",
+      "valley",
+      "sky",
+      "sunset",
+      "sunrise",
+      "field",
+      "river",
+      "beach",
+      "island",
+      "waterfall",
+      "canyon",
+    ],
+    boosters:
+      "atmospheric perspective and depth layers, realistic cloud formations, naturalistic foliage with wind movement implied, accurate shadow direction from single light source, foreground-midground-background depth separation, environmental storytelling",
+    negatives:
+      "floating terrain, impossible geography, inconsistent shadow directions, flat horizon, no depth, artificial-looking sky",
+  },
+
+  animal: {
+    triggers: [
+      "animal",
+      "dog",
+      "cat",
+      "horse",
+      "bird",
+      "lion",
+      "tiger",
+      "wolf",
+      "eagle",
+      "dragon",
+      "creature",
+      "beast",
+      "wildlife",
+      "insect",
+      "fish",
+    ],
+    boosters:
+      "anatomically accurate animal physiology, realistic fur/feather/scale texture with directional growth, authentic species markings, natural pose and weight distribution, believable musculature, species-accurate proportions",
+    negatives:
+      "extra legs, missing limbs, wrong number of limbs, deformed snout, blank eyes, fused body parts, unnatural proportions",
+  },
+
+  architecture: {
+    triggers: [
+      "building",
+      "architecture",
+      "interior",
+      "room",
+      "house",
+      "castle",
+      "temple",
+      "bridge",
+      "structure",
+      "facade",
+      "hallway",
+      "corridor",
+      "skyscraper",
+    ],
+    boosters:
+      "accurate vanishing point perspective, realistic material properties (concrete, glass, wood, stone), ambient occlusion in corners and joints, structural integrity believability, detailed surface textures and aging, intentional human scale reference",
+    negatives:
+      "impossible geometry, floating elements, inconsistent perspective, melting walls, no depth, flat textures",
+  },
+
+  vehicle: {
+    triggers: [
+      "car",
+      "vehicle",
+      "truck",
+      "motorcycle",
+      "plane",
+      "spaceship",
+      "ship",
+      "train",
+      "bike",
+      "jet",
+      "submarine",
+      "tank",
+    ],
+    boosters:
+      "accurate mechanical detailing, reflective metallic surfaces with environment mapping, realistic tire contact with ground, correct panel gaps, branded or genre-accurate design language",
+    negatives:
+      "incorrect wheel count, floating vehicles, no ground shadow, distorted body panels, wrong perspective",
+  },
+
+  food: {
+    triggers: [
+      "food",
+      "meal",
+      "dish",
+      "restaurant",
+      "cuisine",
+      "drink",
+      "coffee",
+      "cake",
+      "fruit",
+      "vegetable",
+      "dessert",
+      "beverage",
+    ],
+    boosters:
+      "appetizing food styling, correct food textures (steam, glaze, crunch, frost), macro food photography quality, plating presentation worthy of a Michelin-starred restaurant, natural food colors",
+    negatives:
+      "unappetizing, artificial colors, wrong food texture, plastic-looking, melted or deformed food",
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 5: MOOD & ATMOSPHERE INTELLIGENCE
+// ─────────────────────────────────────────────────────────────────────────
+const MOOD_KEYWORDS = {
+  dramatic:
+    "high contrast dramatic lighting, deep shadows, intense atmosphere, emotional weight",
+  peaceful:
+    "soft diffused light, tranquil atmosphere, serene color palette, gentle warmth",
+  mysterious:
+    "low-key moody lighting, fog and haze, hidden details, enigmatic framing",
+  epic: "sweeping grand scale, heroic framing, awe-inspiring composition, powerful color grading",
+  romantic:
+    "warm golden bokeh, soft focus edges, intimate framing, tender atmosphere",
+  dark: "deep shadow contrast, desaturated palette, noir atmosphere, oppressive weight",
+  vibrant:
+    "bold saturated colors, energetic composition, dynamic movement implied",
+  melancholic:
+    "cool blue tones, overcast soft light, lonely wide framing, quiet stillness",
+  joyful:
+    "bright warm tones, uplifting composition, light and airy, cheerful color palette",
+  tense: "tight framing, low angle, sharp contrast, motion blur on edges",
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 6: HELPER UTILITIES
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Detects which subject category best matches the user prompt
+ * @param {string} prompt
+ * @returns {{ key: string, data: object } | null}
+ */
+const detectSubject = (prompt) => {
+  const lower = prompt.toLowerCase();
+  for (const [key, data] of Object.entries(SUBJECT_INTELLIGENCE)) {
+    if (data.triggers.some((t) => lower.includes(t))) {
+      return { key, data };
+    }
+  }
+  return null;
+};
+
+/**
+ * Detects mood/emotional tone from the prompt
+ * @param {string} prompt
+ * @returns {string | null}
+ */
+const detectMood = (prompt) => {
+  const lower = prompt.toLowerCase();
+  for (const [mood, enhancement] of Object.entries(MOOD_KEYWORDS)) {
+    if (lower.includes(mood)) return enhancement;
+  }
+  return null;
+};
+
+/**
+ * Cleans and deduplicates a negative prompt array → comma-separated string
+ * @param {string[]} arr
+ * @returns {string}
+ */
+const buildNegativePrompt = (...arrays) => {
+  const combined = arrays.flatMap((a) =>
+    typeof a === "string"
+      ? a
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : a || [],
+  );
+  return [...new Set(combined)].join(", ");
+};
+
+/**
+ * Safely normalizes style key
+ * @param {string} style
+ * @returns {string}
+ */
+const normalizeStyle = (style) => (style || "realistic").toLowerCase().trim();
+
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 7: MAIN ENHANCE FUNCTION
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Transforms a simple user prompt into a production-grade AI image prompt.
+ *
+ * @param {string} userPrompt   - Raw user input (e.g. "a knight in a forest")
+ * @param {string} style        - Visual style key (e.g. "realistic", "anime")
+ * @param {object} [options]    - Optional overrides
+ * @param {boolean} [options.includeNegative=true]  - Append negative prompt block
+ * @param {boolean} [options.verbose=false]          - Return structured breakdown object
+ * @param {string}  [options.aspectRatio]            - e.g. "16:9", "1:1", "9:16"
+ * @param {string}  [options.targetModel]            - e.g. "midjourney", "dalle", "flux"
+ *
+ * @returns {string | object} Enhanced prompt string, or verbose breakdown object
+ */
+const enhancePrompt = (userPrompt, style, options = {}) => {
+  const {
+    includeNegative = true,
+    verbose = false,
+    aspectRatio = null,
+    targetModel = null,
+  } = options;
+
+  // ── 1. Guard input ──────────────────────────────────────────
+  if (!userPrompt || typeof userPrompt !== "string" || !userPrompt.trim()) {
+    throw new Error("[enhancePrompt] userPrompt must be a non-empty string.");
+  }
+
+  const cleanPrompt = userPrompt.trim();
+  const styleKey = normalizeStyle(style);
+
+  // ── 2. Resolve style profile (fallback → realistic) ─────────
+  const profile = STYLE_PROFILES[styleKey] || STYLE_PROFILES["realistic"];
+
+  // ── 3. Subject intelligence ─────────────────────────────────
+  const subjectMatch = detectSubject(cleanPrompt);
+  const subjectBoosters = subjectMatch ? subjectMatch.data.boosters : null;
+  const subjectNegatives = subjectMatch ? subjectMatch.data.negatives : null;
+
+  // ── 4. Mood intelligence ────────────────────────────────────
+  const moodEnhancement = detectMood(cleanPrompt);
+
+  // ── 5. Model-specific suffix ────────────────────────────────
+  const modelHints = {
+    midjourney: "--quality 2 --stylize 750",
+    flux: "rendered with FLUX, physically accurate materials",
+    dalle: "DALL-E optimized, clear subject, coherent composition",
+    sdxl: "SDXL optimized, high fidelity, detailed latent space",
+    leonardo: "Leonardo AI, high detail, cinematic render",
+    ideogram: "Ideogram style, sharp text handling, clear composition",
+  };
+  const modelSuffix = targetModel
+    ? modelHints[targetModel.toLowerCase()] || null
+    : null;
+
+  // ── 6. Aspect ratio hint ────────────────────────────────────
+  const ratioHint = aspectRatio
+    ? `aspect ratio ${aspectRatio}, ${
+        aspectRatio === "9:16"
+          ? "vertical portrait framing"
+          : aspectRatio === "16:9"
+            ? "widescreen cinematic framing"
+            : aspectRatio === "1:1"
+              ? "square centered composition"
+              : "custom framing"
+      }`
+    : null;
+
+  // ── 7. Assemble positive prompt ─────────────────────────────
+  const positiveComponents = [
+    // User's original intent — always first, never altered
+    cleanPrompt,
+
+    // Style identity
+    profile.core,
+
+    // Subject-specific anatomy/material boosters
+    subjectBoosters,
+
+    // Rendering technique
+    profile.rendering,
+
+    // Lighting
+    profile.lighting,
+
+    // Mood override (if detected)
+    moodEnhancement,
+
+    // Camera & composition
+    profile.camera,
+
+    // Aspect ratio
+    ratioHint,
+
+    // Universal quality anchors
+    UNIVERSAL_QUALITY.join(", "),
+
+    // Style-specific quality terms
+    profile.quality,
+
+    // Model suffix
+    modelSuffix,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  // ── 8. Assemble negative prompt ─────────────────────────────
+  const negativePromptString = buildNegativePrompt(
+    UNIVERSAL_NEGATIVES,
+    profile.negative,
+    subjectNegatives || "",
+  );
+
+  // ── 9. Build final output ───────────────────────────────────
+  if (verbose) {
+    return {
+      positivePrompt: positiveComponents,
+      negativePrompt: negativePromptString,
+      detectedStyle: styleKey,
+      detectedSubject: subjectMatch ? subjectMatch.key : "general",
+      detectedMood: moodEnhancement || "neutral",
+      aspectRatio: aspectRatio || "auto",
+      targetModel: targetModel || "universal",
+      characterCount: positiveComponents.length,
+      wordCount: positiveComponents.split(/\s+/).length,
+    };
+  }
+
+  if (includeNegative) {
+    return `${positiveComponents}\n\nNegative prompt: ${negativePromptString}`;
+  }
+
+  return positiveComponents;
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 8: LOGO/ICON ENHANCED PROMPT
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Specialized prompt enhancement for logo and icon generation
+ * @param {string} userPrompt   - Logo description (e.g. "tech company logo")
+ * @param {string} style        - Logo style (e.g. "modern", "minimal")
+ * @param {object} [options]    - Optional overrides
+ * @returns {string} Enhanced logo-specific prompt
+ */
+const enhanceLogoPrompt = (userPrompt, style, options = {}) => {
+  // Map logo styles to general style profiles
+  const logoStyleMap = {
+    modern: "digital art",
+    minimalist: "minimalist",
+    corporate: "digital art",
+    creative: "digital art",
+    tech: "cyberpunk",
+    luxury: "digital art",
+    playful: "cartoon",
+    bold: "digital art",
+    elegant: "oil painting",
+    geometric: "abstract",
+    organic: "digital art",
+    vintage: "vintage",
   };
 
-  // Logo-specific negative prompts
-  const logoNegativePrompts =
-    "blurry, pixelated, low resolution, cluttered, busy design, poor typography, amateur, distorted text, watermark, copyright";
+  // Normalize style
+  const baseStyle = logoStyleMap[style.toLowerCase()] || "digital art";
 
-  // Get logo style enhancement
-  const logoStyleEnhancement =
-    logoStyleEnhancements[style.toLowerCase()] ||
-    logoStyleEnhancements["modern"];
+  // Logo-specific quality additions
+  const logoAdditions =
+    "vector art style, clean design, professional logo, scalable, high contrast, clear lines, brand identity, transparent background, centered composition, logo design";
 
-  // Construct logo-specific enhanced prompt
-  const enhancedLogoPrompt = `${userPrompt}, ${logoStyleEnhancement}, ${logoQualityTerms}, transparent background, centered composition. Negative prompt: ${logoNegativePrompts}`;
+  // Construct logo-specific prompt
+  const logoPrompt = `${userPrompt}, ${logoAdditions}`;
 
-  return enhancedLogoPrompt;
+  // Use the main enhance function but mark as logo
+  const result = enhancePrompt(logoPrompt, baseStyle, {
+    ...options,
+    includeNegative: true,
+  });
+
+  // If result is an object (verbose mode), return it as-is
+  if (typeof result === "object") {
+    return result;
+  }
+
+  // Add logo-specific negative terms to the regular result
+  const logoNegatives =
+    "pixelated, low resolution, cluttered, busy design, poor typography, amateur, distorted text, pixelation, raster, bitmap";
+
+  const negativeIndex = result.indexOf("\n\nNegative prompt: ");
+  if (negativeIndex > -1) {
+    const positivePrompt = result.substring(0, negativeIndex);
+    const negativePrompt = result.substring(negativeIndex + 18);
+    return `${positivePrompt}\n\nNegative prompt: ${logoNegatives}, ${negativePrompt}`;
+  }
+
+  return result;
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 9: CONVENIENCE EXPORTS & UTILITIES
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns all supported style keys
+ * @returns {string[]}
+ */
+const getSupportedStyles = () => Object.keys(STYLE_PROFILES);
+
+/**
+ * Batch enhance multiple prompts
+ * @param {Array<{prompt: string, style: string, options?: object}>} items
+ * @returns {string[]}
+ */
+const batchEnhance = (items) =>
+  items.map(({ prompt, style, options }) =>
+    enhancePrompt(prompt, style, options),
+  );
 
 // Gemini AI Service (Note: Gemini doesn't generate images directly)
 const generateImageWithGemini = async (prompt, style) => {
@@ -215,7 +824,7 @@ const generateImageWithOpenAI = async (prompt, style) => {
     const enhancedPrompt = enhancePrompt(prompt, style);
 
     const response = await openai.images.generate({
-      model: "dall-e-3",
+      model: "gpt-image-1",
       prompt: enhancedPrompt,
       n: 1,
       size: "1024x1024",
@@ -745,7 +1354,178 @@ const generateLogoWithHuggingFace = async (prompt, style) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────
+// SECTION 10: VIDEO GENERATION SERVICE
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Generates video from text prompt using Wan-AI model
+ * @param {string} prompt - Text description for video generation
+ * @param {string} style - Visual style (optional, used in prompt enhancement)
+ * @returns {Promise<{success: boolean, videoBlob?: Blob, provider: string, error?: string}>}
+ */
+const generateVideoWithHuggingFace = async (prompt, style = "realistic") => {
+  try {
+    // Validate API key
+    if (
+      !process.env.HUGGINGFACE_API_KEY ||
+      process.env.HUGGINGFACE_API_KEY === "your_huggingface_api_key_here"
+    ) {
+      throw new Error("Hugging Face API key not configured");
+    }
+
+    // Enhance the prompt for better video generation
+    const enhancedPrompt = enhancePrompt(prompt, style, {
+      includeNegative: false, // Video models work differently
+      verbose: false,
+    });
+
+    console.log(`[VIDEO] Generating video with prompt: ${enhancedPrompt}`);
+
+    // Call Hugging Face Text-to-Video API using Inference Client
+    const video = await hfClient.textToVideo({
+      inputs: enhancedPrompt,
+      model: "Wan-AI/Wan2.2-T2V-A14B",
+      parameters: {
+        provider: "replicate",
+      },
+    });
+
+    if (!video) {
+      throw new Error("No video data received from Hugging Face");
+    }
+
+    console.log(`[VIDEO] ✅ Video generated successfully`);
+
+    // Convert blob to base64 for storage
+    const buffer = await video.arrayBuffer();
+    const videoBase64 = Buffer.from(buffer).toString("base64");
+
+    return {
+      success: true,
+      videoData: videoBase64,
+      videoBlob: video,
+      provider: "huggingface",
+      model: "Wan-AI/Wan2.2-T2V-A14B",
+    };
+  } catch (error) {
+    console.error("[VIDEO] Hugging Face generation error:", error);
+    return {
+      success: false,
+      error: error.message,
+      provider: "huggingface",
+    };
+  }
+};
+
+/**
+ * Main video generation function with fallback support
+ * @param {string} prompt - Text description for video
+ * @param {string} style - Visual style (default: realistic)
+ * @returns {Promise<{success: boolean, videoData?: string, provider: string, error?: string}>}
+ */
+const generateVideo = async (prompt, style = "realistic") => {
+  try {
+    if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
+      throw new Error("Video prompt must be a non-empty string");
+    }
+
+    console.log(`[VIDEO] Starting video generation with prompt: "${prompt}"`);
+
+    // Try Hugging Face
+    const hfResult = await generateVideoWithHuggingFace(prompt, style);
+
+    if (hfResult.success) {
+      return hfResult;
+    }
+
+    // All providers failed
+    throw new Error("Video generation failed: " + hfResult.error);
+  } catch (error) {
+    console.error("[VIDEO] Video generation failed:", error);
+    return {
+      success: false,
+      error: error.message,
+      provider: "none",
+    };
+  }
+};
+
+/**
+ * Save video to Cloudinary (using Cloudinary SDK)
+ * Note: Actual upload is done in the controller to avoid tight coupling
+ * This function converts video blob to base64 for API transfer
+ * @param {Buffer|Blob} videoBuffer - Video buffer/blob
+ * @returns {Promise<{success: boolean, base64?: string, mimeType?: string, error?: string}>}
+ */
+const prepareVideoForUpload = async (videoBuffer) => {
+  try {
+    if (!videoBuffer) {
+      throw new Error("Video buffer is required");
+    }
+
+    // Detect MIME type (Wan-AI typically outputs mp4)
+    const mimeType = "video/mp4";
+
+    // Convert to base64 if it's a buffer
+    let base64Data;
+    if (Buffer.isBuffer(videoBuffer)) {
+      base64Data = videoBuffer.toString("base64");
+    } else if (videoBuffer instanceof Blob) {
+      // Convert Blob to Buffer then to base64
+      const arrayBuffer = await videoBuffer.arrayBuffer();
+      base64Data = Buffer.from(arrayBuffer).toString("base64");
+    } else {
+      throw new Error("Invalid video buffer format");
+    }
+
+    return {
+      success: true,
+      base64: base64Data,
+      mimeType: mimeType,
+      dataUri: `data:${mimeType};base64,${base64Data}`,
+    };
+  } catch (error) {
+    console.error("[VIDEO] Error preparing video for upload:", error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+};
+
+/**
+ * Generate filename for video
+ * @param {string} extension - File extension (default: mp4)
+ * @returns {string} Generated filename
+ */
+const generateVideoFilename = (extension = "mp4") => {
+  const timestamp = Date.now();
+  const random = Math.round(Math.random() * 1e9);
+  return `video_${timestamp}_${random}.${extension}`;
+};
+
+/**
+ * Batch generate videos from multiple prompts
+ * @param {Array<{prompt: string, style?: string}>} items
+ * @returns {Promise<Array>} Array of generation results
+ */
+const batchGenerateVideos = async (items) => {
+  try {
+    const results = await Promise.all(
+      items.map(({ prompt, style = "realistic" }) =>
+        generateVideo(prompt, style),
+      ),
+    );
+    return results;
+  } catch (error) {
+    console.error("[VIDEO] Batch video generation error:", error);
+    return [];
+  }
+};
+
 module.exports = {
+  // Image Generation Functions
   generateImage,
   generateImageWithGemini,
   generateImageWithOpenAI,
@@ -757,7 +1537,28 @@ module.exports = {
   generateLogoWithGemini,
   generateLogoWithOpenAI,
   generateLogoWithHuggingFace,
+
+  // Video Generation Functions (NEW)
+  generateVideo,
+  generateVideoWithHuggingFace,
+  prepareVideoForUpload,
+  generateVideoFilename,
+  batchGenerateVideos,
+
+  // Prompt Enhancement (v2.0 Production Grade)
+  enhancePrompt,
   enhanceLogoPrompt,
+
+  // Prompt Engineer Constants & Utilities
+  STYLE_PROFILES,
+  SUBJECT_INTELLIGENCE,
+  MOOD_KEYWORDS,
+  UNIVERSAL_QUALITY,
+  UNIVERSAL_NEGATIVES,
+  getSupportedStyles,
+  batchEnhance,
+
+  // Utility Functions
   saveImageToPublic,
   generateFilename,
 };
